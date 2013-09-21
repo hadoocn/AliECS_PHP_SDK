@@ -1,137 +1,22 @@
 <?php
+
 /*
   The php sdk class for alibaba cloud ecs api.
   Author: enj0y
   Email: hackes@outlook.com
   Project page: https://github.com/thislancorp/AliECS_PHP_SDK/
-  Latest ECS Api reference: http://oss.aliyuncs.com/developers/API/ECS-API-Reference.pdf
+  Latest ECS Api reference: http://developers.oss.aliyuncs.com/API/ECS-API-Reference-Full.pdf
  */
 Class ECS{
-	protected static $accessKeyID=null,$accessKeySec=null,$accessGetway="http://ecs.aliyuncs.com",$data=null,$version='2013-01-10';
+	protected static $accessKeyID=null, $accessKeySec=null, $accessGetway="http://ecs.aliyuncs.com", $data=null, $exception=null, $version='2013-01-10', $debug=false;
 	
-	protected static function xml2array($contents, $get_attributes=1, $priority = 'tag') {
-		// Parse XML Body to php array
-		if(!$contents) return array(); 
-
-		if(!function_exists('xml_parser_create')) {
-			//print "'xml_parser_create()' function not found!";
-			return array();
-		} 
-
-		//Get the XML parser of PHP - PHP must have this module for the parser to work
-		$parser = xml_parser_create('');
-		xml_parser_set_option($parser, XML_OPTION_TARGET_ENCODING, "UTF-8"); # http://minutillo.com/steve/weblog/2004/6/17/php-xml-and-character-encodings-a-tale-of-sadness-rage-and-data-loss
-		xml_parser_set_option($parser, XML_OPTION_CASE_FOLDING, 0);
-		xml_parser_set_option($parser, XML_OPTION_SKIP_WHITE, 1);
-		xml_parse_into_struct($parser, trim($contents), $xml_values);
-		xml_parser_free($parser); 
-
-		if(!$xml_values) return;//Hmm... 
-
-		//Initializations
-		$xml_array = array();
-		$parents = array();
-		$opened_tags = array();
-		$arr = array(); 
-
-		$current = &$xml_array; //Refference 
-
-		//Go through the tags.
-		$repeated_tag_index = array();//Multiple tags with same name will be turned into an array
-		foreach($xml_values as $data) {
-			unset($attributes,$value);//Remove existing values, or there will be trouble 
-
-			//This command will extract these variables into the foreach scope
-			// tag(string), type(string), level(int), attributes(array).
-			extract($data);//We could use the array by itself, but this cooler. 
-
-			$result = array();
-			$attributes_data = array(); 
-
-			if(isset($value)) {
-				if($priority == 'tag') $result = $value;
-				else $result['value'] = $value; //Put the value in a assoc array if we are in the 'Attribute' mode
-			} 
-
-			//Set the attributes too.
-			if(isset($attributes) and $get_attributes) {
-				foreach($attributes as $attr => $val) {
-					if($priority == 'tag') $attributes_data[$attr] = $val;
-					else $result['attr'][$attr] = $val; //Set all the attributes in a array called 'attr'
-				}
-			} 
-
-			//See tag status and do the needed.
-			if($type == "open") {//The starting of the tag '<tag>'
-				$parent[$level-1] = &$current;
-				if(!is_array($current) or (!in_array($tag, array_keys($current)))) { //Insert New tag
-					$current[$tag] = $result;
-					if($attributes_data) $current[$tag. '_attr'] = $attributes_data;
-					$repeated_tag_index[$tag.'_'.$level] = 1; 
-
-					$current = &$current[$tag]; 
-
-				} else { //There was another element with the same tag name 
-
-					if(isset($current[$tag][0])) {//If there is a 0th element it is already an array
-						$current[$tag][$repeated_tag_index[$tag.'_'.$level]] = $result;
-						$repeated_tag_index[$tag.'_'.$level]++;
-					} else {//This section will make the value an array if multiple tags with the same name appear together
-						$current[$tag] = array($current[$tag],$result);//This will combine the existing item and the new item together to make an array
-						$repeated_tag_index[$tag.'_'.$level] = 2; 
-
-						if(isset($current[$tag.'_attr'])) { //The attribute of the last(0th) tag must be moved as well
-							$current[$tag]['0_attr'] = $current[$tag.'_attr'];
-							unset($current[$tag.'_attr']);
-						} 
-
-					}
-					$last_item_index = $repeated_tag_index[$tag.'_'.$level]-1;
-					$current = &$current[$tag][$last_item_index];
-				} 
-
-			} elseif($type == "complete") { //Tags that ends in 1 line '<tag />'
-				//See if the key is already taken.
-				if(!isset($current[$tag])) { //New Key
-					$current[$tag] = $result;
-					$repeated_tag_index[$tag.'_'.$level] = 1;
-					if($priority == 'tag' and $attributes_data) $current[$tag. '_attr'] = $attributes_data; 
-
-				} else { //If taken, put all things inside a list(array)
-					if(isset($current[$tag][0]) and is_array($current[$tag])) {//If it is already an array... 
-
-						// ...push the new element into that array.
-						$current[$tag][$repeated_tag_index[$tag.'_'.$level]] = $result; 
-
-						if($priority == 'tag' and $get_attributes and $attributes_data) {
-							$current[$tag][$repeated_tag_index[$tag.'_'.$level] . '_attr'] = $attributes_data;
-						}
-						$repeated_tag_index[$tag.'_'.$level]++; 
-
-					} else { //If it is not an array...
-						$current[$tag] = array($current[$tag],$result); //...Make it an array using using the existing value and the new value
-						$repeated_tag_index[$tag.'_'.$level] = 1;
-						if($priority == 'tag' and $get_attributes) {
-							if(isset($current[$tag.'_attr'])) { //The attribute of the last(0th) tag must be moved as well 
-
-								$current[$tag]['0_attr'] = $current[$tag.'_attr'];
-								unset($current[$tag.'_attr']);
-							} 
-
-							if($attributes_data) {
-								$current[$tag][$repeated_tag_index[$tag.'_'.$level] . '_attr'] = $attributes_data;
-							}
-						}
-						$repeated_tag_index[$tag.'_'.$level]++; //0 and 1 index is already taken
-					}
-				} 
-
-			} elseif($type == 'close') { //End of tag '</tag>'
-				$current = &$parent[$level-1];
-			}
-		} 
-
-		return($xml_array);
+	protected static function exception( $errCode ) {
+		self::$exception[ $errCode ];
+		
+	}
+	
+	protected static function jsonParse( $contents ) {
+		return json_decode($contents, true);
 	}
 
 	protected static function percentEncode($str){
@@ -143,19 +28,19 @@ Class ECS{
 	}
 	
 	protected static function sign($parameters, $accessKeySecret){
-		// ½«²ÎÊıKey°´×ÖµäË³ĞòÅÅĞò
+		// å°†å‚æ•°KeyæŒ‰å­—å…¸é¡ºåºæ’åº
 		ksort($parameters);
 
-		// Éú³É¹æ·¶»¯ÇëÇó×Ö·û´®
+		// ç”Ÿæˆè§„èŒƒåŒ–è¯·æ±‚å­—ç¬¦ä¸²
 		$canonicalizedQueryString = '';
 		foreach($parameters as $key => $value){
 			$canonicalizedQueryString .= '&' . self::percentEncode($key). '=' . self::percentEncode($value);
 		}
 
-		// Éú³ÉÓÃÓÚ¼ÆËãÇ©ÃûµÄ×Ö·û´® stringToSign
+		// ç”Ÿæˆç”¨äºè®¡ç®—ç­¾åçš„å­—ç¬¦ä¸² stringToSign
 		$stringToSign = 'GET&%2F&' .self::percentencode(substr($canonicalizedQueryString, 1));
 
-		// ¼ÆËãÇ©Ãû£¬×¢ÒâaccessKeySecretºóÃæÒª¼ÓÉÏ×Ö·û'&'
+		// è®¡ç®—ç­¾åï¼Œæ³¨æ„accessKeySecretåé¢è¦åŠ ä¸Šå­—ç¬¦'&'
 		$signature = base64_encode(hash_hmac('sha1', $stringToSign, $accessKeySecret . '&', true));
 		return $signature;
 	}
@@ -182,11 +67,11 @@ Class ECS{
 		return http_build_query($data);
 	}
 	
-	protected static function auth($params=array(),$curl=true){
-		// $params ÇëÇóÊı¾İ£¬$curl ÊÇ·ñĞèÒªÇëÇó³öÈ¥,Ä¬ÈÏtrue,ÎªfalseÊ±»á·µ»ØÇ©ÃûµÄURL
+	protected static function auth($params=array(), $curl=true, $deJson=true){
+		// $params è¯·æ±‚æ•°æ®ï¼Œ$curl æ˜¯å¦éœ€è¦è¯·æ±‚å‡ºå»,é»˜è®¤true,ä¸ºfalseæ—¶ä¼šè¿”å›ç­¾åçš„URL
 		self::$data = array(
-			// ¹«¹²²ÎÊı
-			'Format' => 'XML',
+			// å…¬å…±å‚æ•°
+			'Format' => 'JSON',
 			'Version' => self::$version,
 			'AccessKeyId' => self::$accessKeyID,
 			'SignatureVersion' => '1.0',
@@ -199,28 +84,103 @@ Class ECS{
 		}
 		self::$data['Signature'] = self::sign(self::$data, self::$accessKeySec);
 		$url= self::$accessGetway .'/?' . self::httpParams(self::$data);
-		if($curl===true){
-			return self::xml2array(self::curl($url));
+		if($curl===true && self::$debug == false ){
+			if($deJson)
+				return self::jsonParse(self::curl($url));
+			else
+				return self::curl($url);
 		}else{
 			return $url;
 		}
 	}
 	
-	function __construct($keyid="",$keysec="",$getway="http://ecs.aliyuncs.com"){
-		if($keyid!=="")self::$accessKeyID=$keyid;
-		if($keysec!=="")self::$accessKeySec=$keysec;
-		self::$accessGetway=$getway;
-		if(self::$data===null)self::$data=array();
+	function __construct( $data ){
+		if($data['accessKeyID'] != "")self::$accessKeyID = $data['accessKeyID'];
+		if($data['accessKeySec'] != "")self::$accessKeySec = $data['accessKeySec'];
+		if($data['accessGetway'] != "")self::$accessGetway = $data['accessGetway'];
+		if(@$data['debug'])self::$debug=true;
+		if(self::$data === null)self::$data=array();
 		date_default_timezone_set("GMT");
+		if(self::$exception===null)
+			self::$exception = array(
+				'UnsupportedOperation' => 'ï¼ˆæ‚¨çš„è´¦æˆ·ï¼‰ä¸æ”¯æŒè¯¥æ“ä½œ',
+				'NoSuchVersion' => '',
+				'MissingParameter' => '',
+				'InvalidParameter' => '',
+				'Throttling' => '',
+				'InvalidAccessKeyId.NotFound' => '',
+				'Forbidden' => '',
+				'SignatureDoesNotMatch' => '',
+				'SignatureNonceUsed' => '',
+				'IdempotentParameterMismatch' => 'Request uses a client token in a previous request but is not identical to that request.',
+				'IncorrectInstanceStatus' => '',
+				'InstanceMountedSnapshot' => 'å®ä¾‹å·²ç»æŒ‚è½½è¿‡å¿«ç…§ï¼Œè¯·å…ˆå¸è½½',
+				'InvalidSecurityGroupStatus' => 'å®‰å…¨ç»„å½“å‰çŠ¶æ€ä¸æ”¯æŒæœ¬æ“ä½œ',
+				'InvalidSecurityGroup.InUse' => 'å½“å‰å®‰å…¨ç»„è¢«å®ä¾‹æˆ–å…¶å®ƒå®‰å…¨ç»„æ‰€å¼•ç”¨ï¼Œä¸èƒ½åˆ é™¤',
+				'SecurityGroupLimitExceeded' => 'å®‰å…¨ç»„æ•°é‡è¶…é™',
+				'SecurityGroupRuleLimitExceeded' => 'å®‰å…¨ç»„è§„åˆ™æ•°é‡è¶…é™',
+				'SecurityGroupInstanceLimitExceed' => 'å®‰å…¨ç»„å†…å®ä¾‹æ•°é‡è¶…é™',
+				'InvalidSnapshot.InUse' => 'æ— æ•ˆå¿«ç…§ï¼Œè¢«ä½¿ç”¨ä¸­',
+				'InvalidInstanceId.NotFound' => 'å®ä¾‹ä¸å­˜åœ¨',
+				'InvalidInstanceId.Malformed' => 'å®ä¾‹IDæ ¼å¼éæ³•',
+				'InvalidInstanceType.NotFound' => 'å®ä¾‹è§„æ ¼æœªè¢«æ‰¾åˆ°',
+				'InvalidRegionId.NotFound' => 'æ— æ­¤æ•°æ®ä¸­å¿ƒ',
+				'InvalidZoneId.NotFound' => 'æ— æ­¤å¯ç”¨åŒº',
+				'InvalidDiskId.NotFound' => 'æ— æ­¤ç£ç›˜',
+				'InvalidDiskId.Malformed' => 'ç£ç›˜IDæ ¼å¼éæ³•',
+				'InvalidDisk.NotReady' => 'ç£ç›˜æœªå‡†å¤‡å¥½è¿›è¡Œæ­¤æ“ä½œ',
+				'InvalidDiskType.NotFound' => 'æ— æ­¤ç£ç›˜ç±»å‹',
+				'InvalidSnapshotId.NotFound' => 'æ— æ­¤å¿«ç…§',
+				'InvalidSnapshotId.Malformed' => 'å¿«ç…§IDæ ¼å¼éæ³•',
+				'InvalidSnapshot.Unbootable' => 'æ­¤å¿«ç…§æ— æ³•å¼•å¯¼ï¼Œæ˜¯ä¸æ˜¯ä¸ºæ•°æ®ç›˜æ‰“çš„å¿«ç…§ï¼Ÿ',
+				'InvalidSnapshot.NotReady' => 'å¿«ç…§è¿˜æœªåšå¥½è¿›è¡Œæ­¤æ“ä½œçš„å‡†å¤‡',
+				'InvalidPassword.Malformed' => 'æ— æ•ˆå¯†ç ',
+				'InvalidPublicIpAddress.NotFound' => 'è¯·æ±‚çš„å…¬ç½‘IPä¸å­˜',
+				'InvalidPublicIpAddress.Malformed' => 'è¯·æ±‚çš„IPåœ°å€æ ¼å¼ä¸å¯¹',
+				'InvalidHostName.Malformed' => 'ä¸»æœºåæ ¼å¼ä¸å¯¹',
+				'InvalidImageId.NotFound' => 'è¯·æ±‚çš„é•œåƒæ¨¡æ¿ä¸å­˜åœ¨',
+				'InvalidImageId.Malformed' => 'é•œåƒIDæ ¼å¼éæ³•',
+				'InvalidSecurityGroupId.Malformed' => 'å®‰å…¨ç»„IDæ ¼å¼éæ³•',
+				'InvalidSourceGroupId.NotFound' => 'è¯·æ±‚çš„æ¥æºå®‰å…¨ç»„ä¸å­˜åœ¨',
+				'InvalidSourceGroupId.Malformed' => 'è¯·æ±‚çš„æ¥æºæ¥æºå®‰å…¨ç»„IDæ ¼å¼éæ³•',
+				'InvalidSecurityGroupDescription' => 'è¯·æ±‚çš„æè¿°æ— æ•ˆ',
+				'InvalidIpProtocol' => 'æ— æ•ˆIPåè®®',
+				'InvalidDiskSize.Malformed' => 'ç£ç›˜æ— é™å¤§å°',
+				'InvalidDiskSize.Exceeded' => 'The total disk size of the specified instance cannot exceed 5TB',
+				'InvalidInternetMaxBandwidth.Malformed' => 'è¯·æ±‚çš„å…¬ç½‘å¸¦å®½æ ¼å¼éæ³•',
+				'InvalidSourceCidrIp.Malformed' => 'è¯·æ±‚çš„æ¥æºIPæ ¼å¼ä¸å¯¹',
+				'InvalidPortRange.Malformed' => 'ç”µä¿¡é€šæ¯å¤©è¦æŒ¨ä¹ˆ',
+				'InvalidPolicy.Malformed' => 'æ— æ•ˆå“åº”è§„åˆ™',
+				'InvalidNicType.Malformed' => 'ç½‘ç»œç±»å‹æ•°æ®æ— æ•ˆ'
+			);
 	}
 	
+
+	public function createInstance( $data ){
+		$data['Action']="CreateInstance";
+		/*
+		$data['RegionId']=$regionId;
+		$data['ImageId']=$imageId;
+		$data['InstanceType']=$instanceType;
+		$data['SecurityGroupId']=$securityGroupId;
+		if( $internetMaxBandwidthIn != -1 )$data['InternetMaxBandwidthIn']=$internetMaxBandwidthIn;
+		if( $internetMaxBandwidthOut != -1 )$data['InternetMaxBandwidthOut']=$internetMaxBandwidthOut;
+		if( $hostname != "" )$data['HostName']=$hostname;
+		if( $password != "" )$data['Password']=$password;
+		if( $zoneid != "" )$data['ZoneId']=$zoneid;
+		if( $clientToken != "" )$data['ClientToken']=$clientToken;
+		*/
+		return self::auth($data);
+	}
+
 	/**
 	 Start/PowerON the Given ECS Instance
 	 */
-	public function startInstance($instanceId){
-		$data=array();
+	public function startInstance( $data ){
 		$data['Action']="StartInstance";
+		/*
 		$data['InstanceId']=$instanceId;
+		*/
 		return self::auth($data);
 	}
 
@@ -228,11 +188,12 @@ Class ECS{
 	 Stop/PowerOFF the Given ECS Instance
 	 ForceStop means the electric break stopping.
 	 */
-	public function stopInstance($instanceId,$forceStop=false){
-		$data=array();
+	public function stopInstance( $data ){
 		$data['InstanceId']=$instanceId;
+		/*
 		$data['Action']="StopInstance";
 		$data['ForceStop']=$forceStop?"true":"false";
+		*/
 		return self::auth($data);
 	}
 
@@ -240,11 +201,12 @@ Class ECS{
 	 Reboot the Given ECS Instance
 	 ForceStop means the electric break restarting.
 	 */
-	public function rebootInstance($instanceId,$forceStop=false){
-		$data=array();
+	public function rebootInstance( $data ){
 		$data['Action']="RebootInstance";
+		/*
 		$data['InstanceId']=$instanceId;
 		$data['ForceStop']=$forceStop?"true":"false";
+		*/
 		return self::auth($data);
 	}
 
@@ -253,28 +215,40 @@ Class ECS{
 	 ImageId is the VHD code.
 	 DiskType is "system"/"data" disk.
 	 */
-	public function resetInstance($instanceId,$imageId="",$diskType="system"){
-		$data=array();
+	public function resetInstance( $data ){
 		$data['Action']="ResetInstance";
+		/*
 		$data['InstanceId']=$instanceId;
 		if($imageId!=="")$data['ImageId']=$imageId;
 		$data['DiskType']=$diskType;
+		*/
 		return self::auth($data);
 	}
 
+	public function modifyInstanceSpec( $data ){
+		$data['Action']="ModifyInstanceSpec";
+		/*
+		$data['InstanceId']=$instanceId;
+		$data['InstanceType']=$instanceType;
+		if($internetMaxBandwidthOut!=-1)$data['InternetMaxBandwidthOut']=$internetMaxBandwidthOut;
+		if($internetMaxBandwidthIn!=-1)$data['InternetMaxBandwidthIn']=$internetMaxBandwidthIn;
+		*/
+		return self::auth($data);	
+	}
 	/**
 	 Modify the Given ECS Instance
 		Password is the password wanna set to be.
 		HostName is the new hostname.
 		securityGroupId is the new Sec Group
 	 */
-	public function modifyInstanceAttribute($instanceId,$password="",$hostName="",$securityGroupId=""){
-		$data=array();
+	public function modifyInstanceAttribute( $data ){
 		$data['Action']="ModifyInstanceAttribute";
+		/*
 		$data['InstanceId']=$instanceId;
 		if($password!=="")$data['Password']=$password;
 		if($hostName!=="")$data['HostName']=$hostName;
 		if($securityGroupId!=="")$data['SecurityGroupId']=$securityGroupId;
+		*/
 		return self::auth($data);
 	}
 
@@ -283,45 +257,61 @@ Class ECS{
 	 ImageId is the VHD code.
 	 DiskType is "system"/"data" disk.
 	 */
-	public function describeInstanceStatus($regionId,$zoneId,$pageNumber=1,$pageSize=10){
-		$data=array();
+	public function describeInstanceStatus( $data ){
 		$data['Action']="DescribeInstanceStatus";
+		/*
 		$data['RegionId']=$regionId;
 		$data['ZoneId']=$zoneId;
 		if($pageNumber!==1)$data['PageNumber']=$pageNumber;
 		if($pageSize!==10)$data['PageSize']=$pageSize;
+		*/
 		return self::auth($data);
 	}
 
 	/**
 	 Describe the Given ECS Instance Attribute
 	 */
-	public function describeInstanceAttribute($instanceId){
-		$data=array();
+	public function describeInstanceAttribute( $data ){
 		$data['Action']="DescribeInstanceAttribute";
+		/*
 		$data['InstanceId']=$instanceId;
+		*/
 		return self::auth($data);
 	}
 
 	/**
 	 List disk(s) of the Given ECS Instance Attribute
 	 */
-	public function describeInstanceDisks($instanceId){
-		$data=array();
+	public function describeInstanceDisks( $data ){
 		$data['Action']="DescribeInstanceDisks";
+		/*
 		$data['InstanceId']=$instanceId;
+		*/
+		return self::auth($data);
+	}
+
+	public function createImage( $data ){
+		$data['Action']="CreateImage";
+		/*
+		$data['RegionId']=$regionId;
+		$data['SnapshotId']=$snapshotId;
+		$data['ImageVersion']=$imageVersion;
+		$data['Description']=$description;
+		$data['Visibility']=$visibility;
+		*/
 		return self::auth($data);
 	}
 
 	/**
 	 List image(s) of the Given Region
 	 */
-	public function describeImages($regionId,$pageNumber=1,$pageSize=10){
-		$data=array();
+	public function describeImages( $data ){
 		$data['Action']="DescribeImages";
+		/*
 		$data['RegionId']=$regionId;
 		if($pageNumber!==1)$data['PageNumber']=$pageNumber;
 		if($pageSize!==10)$data['PageSize']=$pageSize;
+		*/
 		return self::auth($data);
 	}
 
@@ -329,106 +319,112 @@ Class ECS{
 	 Allocate a new PublicIpAddress for the Given ECS Instance Attribute
 	 Note:the instance must have no public ip or it will return error
 	 */
-	public function allocatePublicIpAddress($instanceId){
-		$data=array();
+	public function allocatePublicIpAddress( $data ){
 		$data['Action']="AllocatePublicIpAddress";
+		/*
 		$data['InstanceId']=$instanceId;
+		*/
 		return self::auth($data);
 	}
 	
 	/**
 	 Release the given PublicIpAddress
 	 */
-	public function releasePublicIpAddress($publicIpAddress){
-		$data=array();
+	public function releasePublicIpAddress( $data ){
 		$data['Action']="ReleasePublicIpAddress";
+		/*
 		$data['PublicIpAddress']=$publicIpAddress;
+		*/
 		return self::auth($data);
 	}
 	
 	/**
 	 Create a new SecurityGroup
 	 */
-	public function createSecurityGroup($regionId,$description){
-		$data=array();
+	public function createSecurityGroup( $data ){
 		$data['Action']="CreateSecurityGroup";
+		/*
 		$data['RegionId']=$regionId;
 		$data['Description']=$description;
+		*/
 		return self::auth($data);
 	}
 	
 	/**
 	 Authorize a given SecurityGroup the network access permission
-	 SecurityGroupId °²È«×é±àÂë
-	 RegionId °²È«×éËùÊô Region ID
-	 IpProtocol IP Ğ­Òé£¬È¡Öµ£ºtcp|udp|icmp|gre|all£»All±íÊ¾Í¬Ê±Ö§³ÖËÄÖÖĞ­Òé
-	 PortRange IP Ğ­ÒéÏà¹ØµÄ¶Ë¿ÚºÅ·¶Î§£¬tcp¡¢udp Ğ­ÒéµÄÄ¬ÈÏ¶Ë¿ÚºÅ£¬È¡Öµ·¶Î§Îª 1~65535£»ÀıÈç¡°1/200¡±ÒâË¼ÊÇ¶Ë¿ÚºÅ·¶Î§Îª 1~200£¬ÈôÊäÈëÖµÎª£º¡°200/1¡±½Ó¿Úµ÷ÓÃ½«±¨´í¡£icmp Ğ­ÒéÊ±¶Ë¿ÚºÅ·¶Î§ÖµÎª-1/-1£¬gre Ğ­ÒéÊ±¶Ë¿ÚºÅ·¶Î§ÖµÎª-1/-1£¬µ±IpProtocol Îª allÊ±¶Ë¿ÚºÅ·¶Î§ÖµÎª-1/-1£»È¡Öµ·¶Î§SourceGroupId String ·ñ ÊÚÈ¨Í¬Ò»RegionÄÚ¿É·ÃÎÊÄ¿±ê°²È«×éµÄÔ´°²È«×é±àÂë
-	 SourceGroupId »òÕßSourceCidrIp ²ÎÊı±ØĞëÉèÖÃÒ»Ïî£¬Èç¹ûÁ½Ïî¶¼ÉèÖÃ£¬ÔòÄ¬ÈÏ¶Ô
-	 SourceCidrIp ÊÚÈ¨¡£Ö¸¶¨ÁË¸Ã×Ö¶ÎÖ®ºó£¬NicType Ö»ÄÜÑ¡Ôñ intranet
-	 SourceCidrIp ÊÚÈ¨¿É·ÃÎÊÄ¿±ê°²È«×éµÄÔ´ IPµØÖ··¶Î§£¨²ÉÓÃ CIDR¸ñÊ½À´Ö¸¶¨ IP µØÖ··¶Î§£©£¬Ä¬ÈÏÖµÎª 0.0.0.0/0£¨±íÊ¾²»ÊÜÏŞÖÆ£©£¬ÆäËûÖ§³ÖµÄ¸ñÊ½Èç 10.159.6.18/12¡¢10.159.6.186¡¢»ò10.159.6.186-10.159.6.201£¨IP Çø¼ä£©
-	 Policy ÊÚÈ¨²ßÂÔ£¬²ÎÊıÖµ¿ÉÎª£ºaccept£¨½ÓÊÜ·ÃÎÊ£©Ä¬ÈÏÖµÎª£ºaccept
-	 NicType ÍøÂçÀàĞÍ£¬È¡Öµ£ºinternet|intranet£»Ä¬ÈÏÖµÎª internet
+	 SecurityGroupId å®‰å…¨ç»„ç¼–ç 
+	 RegionId å®‰å…¨ç»„æ‰€å± Region ID
+	 IpProtocol IP åè®®ï¼Œå–å€¼ï¼štcp|udp|icmp|gre|allï¼›Allè¡¨ç¤ºåŒæ—¶æ”¯æŒå››ç§åè®®
+	 PortRange IP åè®®ç›¸å…³çš„ç«¯å£å·èŒƒå›´ï¼Œtcpã€udp åè®®çš„é»˜è®¤ç«¯å£å·ï¼Œå–å€¼èŒƒå›´ä¸º 1~65535ï¼›ä¾‹å¦‚â€œ1/200â€æ„æ€æ˜¯ç«¯å£å·èŒƒå›´ä¸º 1~200ï¼Œè‹¥è¾“å…¥å€¼ä¸ºï¼šâ€œ200/1â€æ¥å£è°ƒç”¨å°†æŠ¥é”™ã€‚icmp åè®®æ—¶ç«¯å£å·èŒƒå›´å€¼ä¸º-1/-1ï¼Œgre åè®®æ—¶ç«¯å£å·èŒƒå›´å€¼ä¸º-1/-1ï¼Œå½“IpProtocol ä¸º allæ—¶ç«¯å£å·èŒƒå›´å€¼ä¸º-1/-1ï¼›å–å€¼èŒƒå›´SourceGroupId String å¦ æˆæƒåŒä¸€Regionå†…å¯è®¿é—®ç›®æ ‡å®‰å…¨ç»„çš„æºå®‰å…¨ç»„ç¼–ç 
+	 SourceGroupId æˆ–è€…SourceCidrIp å‚æ•°å¿…é¡»è®¾ç½®ä¸€é¡¹ï¼Œå¦‚æœä¸¤é¡¹éƒ½è®¾ç½®ï¼Œåˆ™é»˜è®¤å¯¹
+	 SourceCidrIp æˆæƒã€‚æŒ‡å®šäº†è¯¥å­—æ®µä¹‹åï¼ŒNicType åªèƒ½é€‰æ‹© intranet
+	 SourceCidrIp æˆæƒå¯è®¿é—®ç›®æ ‡å®‰å…¨ç»„çš„æº IPåœ°å€èŒƒå›´ï¼ˆé‡‡ç”¨ CIDRæ ¼å¼æ¥æŒ‡å®š IP åœ°å€èŒƒå›´ï¼‰ï¼Œé»˜è®¤å€¼ä¸º 0.0.0.0/0ï¼ˆè¡¨ç¤ºä¸å—é™åˆ¶ï¼‰ï¼Œå…¶ä»–æ”¯æŒçš„æ ¼å¼å¦‚ 10.159.6.18/12ã€10.159.6.186ã€æˆ–10.159.6.186-10.159.6.201ï¼ˆIP åŒºé—´ï¼‰
+	 Policy æˆæƒç­–ç•¥ï¼Œå‚æ•°å€¼å¯ä¸ºï¼šacceptï¼ˆæ¥å—è®¿é—®ï¼‰é»˜è®¤å€¼ä¸ºï¼šaccept
+	 NicType ç½‘ç»œç±»å‹ï¼Œå–å€¼ï¼šinternet|intranetï¼›é»˜è®¤å€¼ä¸º internet
 	 */
-	public function authorizeSecurityGroup($securityGroupId,$regionId,$ipProtocol,$portRange,$sourceGroupId=0,$sourceCidrIp=0,$policy="accept",$nicType="internet"){
-		$data=array();
+	public function authorizeSecurityGroup( $data ){
 		$data['Action']="AuthorizeSecurityGroup";
+		/*
 		$data['SecurityGroupId']=$securityGroupId;
 		$data['RegionId']=$regionId;
 		$data['IpProtocol']=$ipProtocol;
 		$data['PortRange']=$portRange;
-		$data['SourceGroupId']=$sourceGroupId;
-		$data['SourceCidrIp']=$sourceCidrIp;
+		if($sourceGroupId!="")$data['SourceGroupId']=$sourceGroupId;
+		if($sourceCidrIp!="")$data['SourceCidrIp']=$sourceCidrIp;
 		$data['Policy']=$policy;
 		$data['NicType']=$nicType;
+		*/
 		return self::auth($data);
 	}
 	
 	/**
 	 Describe a given SecurityGroup
-	 SecurityGroupId °²È«×é±àÂë
-	 RegionId °²È«×éËùÊô Region ID
-	 NicType String È¡Öµ£ºinternet|intranet ²»Ö¸¶¨Ê±Ä¬ÈÏÖµÎª internet
+	 SecurityGroupId å®‰å…¨ç»„ç¼–ç 
+	 RegionId å®‰å…¨ç»„æ‰€å± Region ID
+	 NicType String å–å€¼ï¼šinternet|intranet ä¸æŒ‡å®šæ—¶é»˜è®¤å€¼ä¸º internet
 	 */
-	public function describeSecurityGroupAttribute($securityGroupId,$regionId,$nicType="internet"){
-		$data=array();
+	public function describeSecurityGroupAttribute( $data ){
 		$data['Action']="DescribeSecurityGroupAttribute";
+		/*
 		$data['SecurityGroupId']=$securityGroupId;
 		$data['RegionId']=$regionId;
 		$data['NicType']=$nicType;
+		*/
 		return self::auth($data);
 	}
 	
 	
 	/**
 	 List all SecurityGroup
-	 RegionId °²È«×éËùÊô Region ID
-	 PageNumber µ±Ç°Ò³Âë£¬ÆğÊ¼ÖµÎª 1£¬Ä¬ÈÏÖµÎª 1
-	 PageSize ·ÖÒ³²éÑ¯Ê±ÉèÖÃµÄÃ¿Ò³ĞĞÊı£¬×î´óÖµ 50£¬Ä¬ÈÏÖµÎª 10
+	 RegionId å®‰å…¨ç»„æ‰€å± Region ID
+	 PageNumber å½“å‰é¡µç ï¼Œèµ·å§‹å€¼ä¸º 1ï¼Œé»˜è®¤å€¼ä¸º 1
+	 PageSize åˆ†é¡µæŸ¥è¯¢æ—¶è®¾ç½®çš„æ¯é¡µè¡Œæ•°ï¼Œæœ€å¤§å€¼ 50ï¼Œé»˜è®¤å€¼ä¸º 10
 	 */
-	public function describeSecurityGroups($regionId,$pageNumber=1,$pageSize=10){
-		$data=array();
+	public function describeSecurityGroups( $data ){
 		$data['Action']="DescribeSecurityGroups";
+		/*
 		$data['RegionId']=$regionId;
-		$data['PageNumber']=$pageNumber;
-		$data['PageSize']=$pageSize;
+		if($pageNumber!=1)$data['PageNumber']=$pageNumber;
+		if($pageSize!=10)$data['PageSize']=$pageSize;
+		*/
 		return self::auth($data);
 	}
 	
 	/**
 	 Revoke a given SecurityGroup
-	 SecurityGroupId °²È«×é±àÂë
-	 RegionId °²È«×éËùÊô Region ID
-	 IpProtocol IP Ğ­Òé£¬È¡Öµ£ºtcp|udp|icmp|gre|all£»All±íÊ¾Í¬Ê±Ö§³ÖËÄÖÖĞ­Òé
-	 PortRange IP Ğ­ÒéÏà¹ØµÄ¶Ë¿ÚºÅ·¶Î§£¬tcp¡¢udp Ğ­ÒéµÄÄ¬ÈÏ¶Ë¿ÚºÅ£¬È¡Öµ·¶Î§Îª 1~65535£»ÀıÈç¡°1/200¡±ÒâË¼ÊÇ¶Ë¿ÚºÅ·¶Î§Îª 1~200£¬ÈôÊäÈëÖµÎª£º¡°200/1¡±½Ó¿Úµ÷ÓÃ½«±¨´í¡£icmp Ğ­ÒéÊ±¶Ë¿ÚºÅ·¶Î§ÖµÎª-1/-1£¬gre Ğ­ÒéÊ±¶Ë¿ÚºÅ·¶Î§ÖµÎª-1/-1£¬µ±IpProtocol Îª allÊ±¶Ë¿ÚºÅ·¶Î§ÖµÎª-1/-1£»È¡Öµ·¶Î§SourceGroupId String ·ñ ÊÚÈ¨Í¬Ò»RegionÄÚ¿É·ÃÎÊÄ¿±ê°²È«×éµÄÔ´°²È«×é±àÂë
-	 SourceGroupId »òÕßSourceCidrIp ²ÎÊı±ØĞëÉèÖÃÒ»Ïî£¬Èç¹ûÁ½Ïî¶¼ÉèÖÃ£¬ÔòÄ¬ÈÏ¶Ô
-	 SourceCidrIp ÊÚÈ¨¡£Ö¸¶¨ÁË¸Ã×Ö¶ÎÖ®ºó£¬NicType Ö»ÄÜÑ¡Ôñ intranet
-	 SourceCidrIp ÊÚÈ¨¿É·ÃÎÊÄ¿±ê°²È«×éµÄÔ´ IPµØÖ··¶Î§£¨²ÉÓÃ CIDR¸ñÊ½À´Ö¸¶¨ IP µØÖ··¶Î§£©£¬Ä¬ÈÏÖµÎª 0.0.0.0/0£¨±íÊ¾²»ÊÜÏŞÖÆ£©£¬ÆäËûÖ§³ÖµÄ¸ñÊ½Èç 10.159.6.18/12¡¢10.159.6.186¡¢»ò10.159.6.186-10.159.6.201£¨IP Çø¼ä£©
-	 Policy ÊÚÈ¨²ßÂÔ£¬²ÎÊıÖµ¿ÉÎª£ºaccept£¨½ÓÊÜ·ÃÎÊ£©Ä¬ÈÏÖµÎª£ºaccept
-	 NicType ÍøÂçÀàĞÍ£¬È¡Öµ£ºinternet|intranet£»Ä¬ÈÏÖµÎª internet
+	 SecurityGroupId å®‰å…¨ç»„ç¼–ç 
+	 RegionId å®‰å…¨ç»„æ‰€å± Region ID
+	 IpProtocol IP åè®®ï¼Œå–å€¼ï¼štcp|udp|icmp|gre|allï¼›Allè¡¨ç¤ºåŒæ—¶æ”¯æŒå››ç§åè®®
+	 PortRange IP åè®®ç›¸å…³çš„ç«¯å£å·èŒƒå›´ï¼Œtcpã€udp åè®®çš„é»˜è®¤ç«¯å£å·ï¼Œå–å€¼èŒƒå›´ä¸º 1~65535ï¼›ä¾‹å¦‚â€œ1/200â€æ„æ€æ˜¯ç«¯å£å·èŒƒå›´ä¸º 1~200ï¼Œè‹¥è¾“å…¥å€¼ä¸ºï¼šâ€œ200/1â€æ¥å£è°ƒç”¨å°†æŠ¥é”™ã€‚icmp åè®®æ—¶ç«¯å£å·èŒƒå›´å€¼ä¸º-1/-1ï¼Œgre åè®®æ—¶ç«¯å£å·èŒƒå›´å€¼ä¸º-1/-1ï¼Œå½“IpProtocol ä¸º allæ—¶ç«¯å£å·èŒƒå›´å€¼ä¸º-1/-1ï¼›å–å€¼èŒƒå›´SourceGroupId String å¦ æˆæƒåŒä¸€Regionå†…å¯è®¿é—®ç›®æ ‡å®‰å…¨ç»„çš„æºå®‰å…¨ç»„ç¼–ç 
+	 SourceGroupId æˆ–è€…SourceCidrIp å‚æ•°å¿…é¡»è®¾ç½®ä¸€é¡¹ï¼Œå¦‚æœä¸¤é¡¹éƒ½è®¾ç½®ï¼Œåˆ™é»˜è®¤å¯¹
+	 SourceCidrIp æˆæƒã€‚æŒ‡å®šäº†è¯¥å­—æ®µä¹‹åï¼ŒNicType åªèƒ½é€‰æ‹© intranet
+	 SourceCidrIp æˆæƒå¯è®¿é—®ç›®æ ‡å®‰å…¨ç»„çš„æº IPåœ°å€èŒƒå›´ï¼ˆé‡‡ç”¨ CIDRæ ¼å¼æ¥æŒ‡å®š IP åœ°å€èŒƒå›´ï¼‰ï¼Œé»˜è®¤å€¼ä¸º 0.0.0.0/0ï¼ˆè¡¨ç¤ºä¸å—é™åˆ¶ï¼‰ï¼Œå…¶ä»–æ”¯æŒçš„æ ¼å¼å¦‚ 10.159.6.18/12ã€10.159.6.186ã€æˆ–10.159.6.186-10.159.6.201ï¼ˆIP åŒºé—´ï¼‰
+	 Policy æˆæƒç­–ç•¥ï¼Œå‚æ•°å€¼å¯ä¸ºï¼šacceptï¼ˆæ¥å—è®¿é—®ï¼‰é»˜è®¤å€¼ä¸ºï¼šaccept
+	 NicType ç½‘ç»œç±»å‹ï¼Œå–å€¼ï¼šinternet|intranetï¼›é»˜è®¤å€¼ä¸º internet
 	 */
-	public function revokeSecurityGroup($securityGroupId,$regionId,$ipProtocol,$portRange,$sourceGroupId=0,$sourceCidrIp=0,$policy="accept",$nicType="internet"){
-		$data=array();
+	public function revokeSecurityGroup( $data ){
 		$data['Action']="RevokeSecurityGroup";
+		/*
 		$data['SecurityGroupId']=$securityGroupId;
 		$data['RegionId']=$regionId;
 		$data['IpProtocol']=$ipProtocol;
@@ -437,17 +433,19 @@ Class ECS{
 		$data['SourceCidrIp']=$sourceCidrIp;
 		$data['Policy']=$policy;
 		$data['NicType']=$nicType;
+		*/
 		return self::auth($data);
 	}
 	
 	/**
 	 Delete a given SecurityGroup
 	 */
-	public function deleteSecurityGroup($securityGroupId,$regionId){
-		$data=array();
+	public function deleteSecurityGroup( $data ){
 		$data['Action']="DeleteSecurityGroup";
+		/*
 		$data['SecurityGroupId']=$securityGroupId;
 		$data['RegionId']=$regionId;
+		*/
 		return self::auth($data);
 	}
 
@@ -455,7 +453,6 @@ Class ECS{
 	 List All Regions
 	 */
 	public function describeRegions(){
-		$data=array();
 		$data['Action']="DescribeRegions";
 		return self::auth($data);
 	}
@@ -463,16 +460,16 @@ Class ECS{
 	/**
 	 get Monitor Data of a given instance
 	 */
-	public function getMonitorData($regionId,$instanceId=null,$time=null,$pageNumber=null,$pageSize=null){
-	    // The time and the instanceId can not request them all at the present time. µ±Ç°²»Ö§³Ö²éÑ¯Ä³ÊµÀı ÔÚÄ³Ê±¼äµÄ¼à¿ØĞÅÏ¢¡£
-		$data=array();
+	public function getMonitorData( $data ){
+	    // The time and the instanceId can not request them all at the present time. å½“å‰ä¸æ”¯æŒæŸ¥è¯¢æŸå®ä¾‹ åœ¨æŸæ—¶é—´çš„ç›‘æ§ä¿¡æ¯ã€‚
 		$data['Action']="GetMonitorData";
+		/*
 		$data['RegionId']=$regionId;
 		if($instanceId!==null)$data['InstanceId']=$instanceId;
 		if($time!==null)$data['Time']=$time;
 		if($pageNumber!==null)$data['PageNumber']=$pageNumber;
 		if($pageSize!==null)$data['PageSize']=$pageSize;
-		
+		*/
 		return self::auth($data);
 	}
 
@@ -481,7 +478,6 @@ Class ECS{
 	 List all ECS type
 	 */
 	public function describeInstanceTypes(){
-		$data=array();
 		$data['Action']="DescribeInstanceTypes";
 		return self::auth($data);
 	}
