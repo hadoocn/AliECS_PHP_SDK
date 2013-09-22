@@ -1,16 +1,20 @@
 <?php
-//ini_set('display_errors',true);
-//error_reporting(E_ALL);
+ini_set('display_errors',true);
+error_reporting(E_ALL);
 
-require_once "ecs.sdk.class.20120913.php";
+require_once "ecs.sdk.class.php";
 
 $ecs=new ECS( array(
-	'accessKeyID' => '你的Key',
-	'accessKeySec' => '你的密钥',
-	'accessGetway' => 'http://ecs.aliyuncs.com'
+    'accessKeyID' => '你的accessKeyId',
+    'accessKeySec' => '你的accessKeyScret',
+    'accessGetway' => 'http://ecs.aliyuncs.com'
 ) );
+
+//查询实例属性
 print_r($ecs->describeInstanceAttribute( array(
-	'InstanceId' => 'AY120723082752d3832041'    // 你的云机机编号（注意与主机名可能不一致）
+    'InstanceId' => '云主机ID，与默认的主机名可能不同'
 ) ));
+
+//查询可用instanceType
 print_r($ecs->describeInstanceTypes());
 ?>
