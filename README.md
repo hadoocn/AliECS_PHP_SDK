@@ -3,7 +3,7 @@ AliECS_PHP_SDK
 
 阿里云ECS PHP开发包 ，PHP开发者可以用它来更方便的写ECS在线管理等工具。
 
-每个ECS CLASS中都需要各类参数。调用时请参阅http://developers.oss.aliyuncs.com/API/ECS-API-Reference-Full.pdf的说明。
+每个ECS CLASS中都需要各类参数。调用时请参阅http://developers.oss.aliyuncs.com/API/ECS-API-Reference-Full.pdf 的说明。
 
 案例：hexPanel( https://i.hexdata.cn/ https://github.com/hexdata/hexportal )
 
